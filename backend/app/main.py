@@ -7,6 +7,7 @@ from app.config import settings
 from app.models import Service, ServiceUpdate
 from app import services as svc
 from app.poller import cache, poll_loop
+from app.mcp_tools import mcp
 
 
 @asynccontextmanager
@@ -17,6 +18,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Cosmos Dashboard API", lifespan=lifespan)
+app.mount("/sse", mcp.sse_app())
 
 
 @app.get("/api/health")
