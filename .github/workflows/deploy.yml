@@ -1,0 +1,44 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ZEUS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.ZEUS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to CT 117
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.venv' \
+            --exclude='frontend/node_modules' \
+            ./ root@${{ secrets.ZEUS_HOST }}:/opt/homelab-dashboard/
+
+          ssh root@${{ secrets.ZEUS_HOST }} '
+            cd /opt/homelab-dashboard
+            docker compose build --no-cache dashboard-api
+            docker compose up -d
+          '
