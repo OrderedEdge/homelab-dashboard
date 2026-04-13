@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homelab Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+a{color:#38bdf8;text-decoration:none}
+a:hover{color:#7dd3fc}
+
+.header{background:#1e293b;border-bottom:1px solid #334155;padding:1.5rem 2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+.header h1{font-size:1.75rem;font-weight:700;letter-spacing:-0.025em}
+.header h1 span{color:#38bdf8}
+.header-meta{display:flex;gap:1.5rem;font-size:0.8rem;color:#94a3b8;align-items:center}
+.header-meta span{display:flex;align-items:center;gap:0.35rem}
+.prom-dot{width:8px;height:8px;border-radius:50%;background:#64748b;display:inline-block}
+.prom-dot.ok{background:#22c55e;box-shadow:0 0 4px #22c55e80}
+.prom-dot.err{background:#ef4444;box-shadow:0 0 4px #ef444480}
+
+/* Tab bar */
+.tab-bar{display:flex;gap:0.5rem;padding:0.75rem 2rem;background:#1e293b;border-bottom:1px solid #334155;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#334155 transparent}
+.tab-bar::-webkit-scrollbar{height:4px}
+.tab-bar::-webkit-scrollbar-track{background:transparent}
+.tab-bar::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+.tab-btn{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;border-radius:9999px;border:1px solid #334155;background:#0f172a;color:#94a3b8;font-size:0.8rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+.tab-btn:hover{border-color:#475569;color:#e2e8f0}
+.tab-btn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:#334155;color:#94a3b8}
+.tab-btn.active .tab-badge{background:rgba(255,255,255,0.2);color:#fff}
+.tab-badge.all-up{background:#22c55e30;color:#22c55e}
+.tab-badge.some-down{background:#ef444430;color:#ef4444}
+
+.host-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;padding:1.25rem 2rem;background:#1e293b;border-bottom:1px solid #334155}
+.host-stat{text-align:center}
+.host-stat .label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:0.25rem}
+.host-stat .value{font-size:1.4rem;font-weight:700;font-variant-numeric:tabular-nums}
+.host-stat .sub{font-size:0.65rem;color:#64748b;margin-top:0.15rem}
+
+.host-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;padding:1rem 2rem;background:#0f172a}
+.chart-box{background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1rem}
+.chart-title{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:0.5rem}
+.chart-wrap{position:relative;height:160px}
+.chart-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.7rem;color:#475569}
+
+.toolbar{display:flex;justify-content:space-between;align-items:center;padding:1rem 2rem;flex-wrap:wrap;gap:0.75rem}
+.toolbar-left{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap}
+.toolbar-right{display:flex;align-items:center;gap:0.5rem}
+.svc-label{font-size:0.9rem;font-weight:600}
+.svc-count{font-size:0.75rem;color:#64748b}
+.sort-btn{padding:0.3rem 0.6rem;border-radius:0.375rem;border:1px solid #334155;background:#1e293b;color:#94a3b8;font-size:0.7rem;cursor:pointer}
+.sort-btn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.tr-btn{padding:0.3rem 0.6rem;border-radius:0.375rem;border:1px solid #334155;background:#1e293b;color:#94a3b8;font-size:0.7rem;cursor:pointer}
+.tr-btn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.filter-input{padding:0.3rem 0.6rem;border-radius:0.375rem;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.75rem;width:140px}
+.filter-input::placeholder{color:#475569}
+
+.container-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;padding:0.5rem 2rem 2rem}
+
+.card{background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1.25rem;transition:all 0.3s;cursor:pointer}
+.card:hover{border-color:#475569}
+.card.expanded{grid-column:1/-1}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem}
+.card-name{font-weight:600;font-size:1rem}
+.card-ct{font-size:0.7rem;color:#64748b}
+.card-desc{font-size:0.7rem;color:#94a3b8;margin-bottom:0.75rem;font-style:italic}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.status-up{background:#22c55e;box-shadow:0 0 6px #22c55e80}
+.status-down{background:#ef4444;box-shadow:0 0 6px #ef444480}
+.status-unknown{background:#64748b}
+.expand-icon{font-size:0.6rem;color:#475569;margin-left:0.5rem;transition:transform 0.3s}
+.card.expanded .expand-icon{transform:rotate(180deg)}
+
+.metrics{display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem}
+.metric{display:flex;align-items:center;gap:0.5rem;font-size:0.8rem}
+.metric-label{width:35px;color:#64748b;font-size:0.7rem;text-transform:uppercase;flex-shrink:0}
+.metric-bar-bg{flex:1;height:6px;background:#334155;border-radius:3px;overflow:hidden}
+.metric-bar{height:100%;border-radius:3px;transition:width 0.6s ease}
+.metric-val{width:45px;text-align:right;font-variant-numeric:tabular-nums;font-size:0.75rem;flex-shrink:0}
+.bar-green{background:linear-gradient(90deg,#22c55e,#4ade80)}
+.bar-blue{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.bar-amber{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.bar-red{background:linear-gradient(90deg,#ef4444,#f87171)}
+
+.card-link{display:inline-block;font-size:0.7rem;padding:0.25rem 0.6rem;background:#0f172a;border:1px solid #334155;border-radius:0.375rem;margin-right:0.35rem;margin-bottom:0.35rem;color:#38bdf8;transition:border-color 0.2s}
+.card-link:hover{border-color:#38bdf8}
+
+.expanded-detail{margin-top:1rem;border-top:1px solid #334155;padding-top:1rem}
+.expanded-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0.75rem}
+.expanded-chart-box{background:#0f172a;border:1px solid #334155;border-radius:0.5rem;padding:0.75rem}
+.expanded-chart-title{font-size:0.65rem;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;letter-spacing:0.04em}
+.expanded-chart-wrap{height:120px;position:relative}
+
+.docker-section{margin-top:0.75rem;border-top:1px solid #334155;padding-top:0.75rem}
+.docker-label{font-size:0.65rem;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem}
+.docker-ct{display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;padding:0.15rem 0}
+.docker-dot{width:6px;height:6px;border-radius:50%}
+
+.speedtest-section{background:#1e293b;border:1px solid #334155;border-radius:0.75rem;margin:1rem 2rem;padding:1.25rem}
+.speedtest-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1rem}
+.st-title{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600}
+.st-gauges{display:flex;gap:2rem}
+.st-gauge{text-align:center}
+.st-label{font-size:0.6rem;text-transform:uppercase;color:#64748b;margin-bottom:0.25rem}
+.st-value{font-size:1.8rem;font-weight:700;font-variant-numeric:tabular-nums}
+.st-unit{font-size:0.6rem;color:#64748b}
+.st-time{font-size:0.6rem;color:#475569;margin-top:0.15rem}
+.st-chart-wrap{height:180px;position:relative}
+
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.server-desc{font-size:0.75rem;color:#64748b;padding:0.5rem 2rem 0;font-style:italic}
+
+@media(max-width:640px){
+  .header{padding:1rem}
+  .tab-bar{padding:0.5rem 1rem}
+  .host-bar{padding:0.75rem 1rem;grid-template-columns:repeat(3,1fr)}
+  .host-charts{padding:0.75rem 1rem}
+  .toolbar{padding:0.75rem 1rem}
+  .container-grid{padding:0.5rem 1rem 1rem}
+  .speedtest-section{margin:0.75rem 1rem}
+  .server-desc{padding:0.5rem 1rem 0}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Homelab <span>Dashboard</span></h1>
+  <div class="header-meta">
+    <span><span class="prom-dot" id="prom-dot"></span> Prometheus</span>
+    <span id="fleet-nodes">Nodes: --</span>
+    <span id="fleet-updated">Updated: --</span>
+  </div>
+</div>
+
+<div class="tab-bar" id="tab-bar"></div>
+
+<div id="tab-cosmos" class="tab-content"></div>
+<div id="tab-zeus" class="tab-content"></div>
+<div id="tab-nuc" class="tab-content"></div>
+<div id="tab-titan" class="tab-content"></div>
+<div id="tab-forge" class="tab-content"></div>
+<div id="tab-pfsense" class="tab-content"></div>
+
+<script>
+const PROM = '/prom';
+const API = '';
+let CONTAINERS = [];
+let currentRange = localStorage.getItem('homelab-range') || '1h';
+let currentSort = localStorage.getItem('homelab-sort') || 'ct';
+let currentFilter = '';
+let containerMetrics = {};
+let promOk = false;
+let activeCharts = {};
+let activeTab = localStorage.getItem('homelab-tab') || 'cosmos';
+
+const SERVERS = {
+  cosmos: {
+    label: '\u25C6 Cosmos',
+    hostInstance: 'cosmos-host',
+    job: 'node',
+    dockerApiHost: 'docker-cosmos',
+    hasSpeedtest: true,
+    icon: '\uD83D\uDDA5\uFE0F',
+    description: 'Proxmox VE \u2014 Primary Server'
+  },
+  zeus: {
+    label: '\u25C6 Zeus',
+    hostInstance: 'zeus-host',
+    job: 'node-zeus',
+    dockerApiHost: null,
+    hasSpeedtest: false,
+    icon: '\u26A1',
+    description: 'Proxmox VE \u2014 Media & SIEM'
+  },
+  nuc: {
+    label: '\u25C6 NUC',
+    hostInstance: 'nuc-host',
+    job: 'node-nuc',
+    dockerApiHost: null,
+    hasSpeedtest: false,
+    icon: '\uD83D\uDCE6',
+    description: 'Proxmox VE \u2014 Web & DNS'
+  },
+  titan: {
+    label: '\u25C6 Titan',
+    hostInstance: 'titan',
+    job: 'node-remote',
+    dockerApiHost: null,
+    hasSpeedtest: false,
+    icon: '\uD83C\uDFD4\uFE0F',
+    description: 'Bare Metal \u2014 Docker Host'
+  },
+  forge: {
+    label: '\u25C6 Forge',
+    hostInstance: 'forge',
+    job: 'node-remote',
+    dockerApiHost: null,
+    hasSpeedtest: false,
+    icon: '\u2601\uFE0F',
+    description: 'GCP VM \u2014 orderededge.co.uk'
+  },
+  pfsense: {
+    label: '\u25C6 pfSense',
+    hostInstance: 'pfsense',
+    job: 'node',
+    dockerApiHost: null,
+    hasSpeedtest: false,
+    icon: '\uD83D\uDD12',
+    description: 'Network Firewall & Router'
+  }
+};
+
+// Expanded cards per-tab
+function getExpandedCards(server) {
+  return JSON.parse(localStorage.getItem(`homelab-expanded-${server}`) || '[]');
+}
+function setExpandedCards(server, arr) {
+  localStorage.setItem(`homelab-expanded-${server}`, JSON.stringify(arr));
+}
+
+// ====== HELPERS ======
+function fmtBytes(b) {
+  if (b > 1e12) return (b/1e12).toFixed(1)+' TB';
+  if (b > 1e9) return (b/1e9).toFixed(1)+' GB';
+  if (b > 1e6) return (b/1e6).toFixed(0)+' MB';
+  return (b/1e3).toFixed(0)+' KB';
+}
+
+function fmtRate(bytesPerSec) {
+  if (bytesPerSec > 1e9) return (bytesPerSec/1e9).toFixed(1)+' GB/s';
+  if (bytesPerSec > 1e6) return (bytesPerSec/1e6).toFixed(1)+' MB/s';
+  if (bytesPerSec > 1e3) return (bytesPerSec/1e3).toFixed(0)+' KB/s';
+  return bytesPerSec.toFixed(0)+' B/s';
+}
+
+function fmtUptime(seconds) {
+  const d = Math.floor(seconds/86400), h = Math.floor((seconds%86400)/3600), m = Math.floor((seconds%3600)/60);
+  return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`;
+}
+
+function barClass(pct) {
+  if (pct > 90) return 'bar-red';
+  if (pct > 70) return 'bar-amber';
+  if (pct > 40) return 'bar-blue';
+  return 'bar-green';
+}
+
+function colorVal(pct, thresholds) {
+  const [w,d] = thresholds || [60,85];
+  return pct > d ? '#ef4444' : pct > w ? '#f59e0b' : '#22c55e';
+}
+
+function tsLabels(values) { return values.map(v => { const d=new Date(v[0]*1000); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }); }
+function tsValues(values) { return values.map(v => parseFloat(v[1])); }
+
+// ====== CHART HELPERS ======
+function destroyChart(key) {
+  if (activeCharts[key]) { activeCharts[key].destroy(); delete activeCharts[key]; }
+}
+function registerChart(key, chart) {
+  destroyChart(key);
+  activeCharts[key] = chart;
+}
+
+function makeChartOpts(datasets, yTickCb, showLegend, extraScales) {
+  const dsList = datasets.filter(Boolean).map(d => d.ds || d);
+  const opts = {
+    responsive: true, maintainAspectRatio: false,
+    animation: {duration: 400},
+    plugins: {
+      legend: {display: !!showLegend, labels: {color:'#94a3b8', boxWidth:8, font:{size:10}}},
+      tooltip: {mode:'index', intersect:false, backgroundColor:'#1e293b', titleColor:'#e2e8f0', bodyColor:'#94a3b8', borderColor:'#334155', borderWidth:1}
+    },
+    scales: {
+      x: {ticks:{color:'#475569',font:{size:9},maxTicksLimit:8}, grid:{color:'#1e293b'}},
+      y: {ticks:{color:'#475569',font:{size:9},callback:yTickCb||undefined}, grid:{color:'#1e293b33'}, beginAtZero:true, ...(extraScales||{})}
+    },
+    elements: {point:{radius:0, hoverRadius:3}, line:{tension:0.3}}
+  };
+  return {type:'line', data:{labels:[], datasets:dsList}, options: opts};
+}
+
+function createLineChart(canvas, labels, datasets, yTickCb, showLegend, extraScales) {
+  const cfg = makeChartOpts(datasets, yTickCb, showLegend, extraScales);
+  cfg.data.labels = labels;
+  return new Chart(canvas, cfg);
+}
+
+// ====== PROMETHEUS HELPERS ======
+async function promQuery(query) {
+  try {
+    const r = await fetch(`${PROM}/api/v1/query?query=${encodeURIComponent(query)}`);
+    const d = await r.json();
+    promOk = true;
+    if (d.status === 'success' && d.data.result.length > 0) return d.data.result;
+    return [];
+  } catch { promOk = false; return []; }
+}
+
+async function promRange(query, range) {
+  const now = Math.floor(Date.now()/1000);
+  const cfg = {
+    '1h':  {dur:3600, step:15},
+    '6h':  {dur:21600, step:60},
+    '24h': {dur:86400, step:300},
+    '7d':  {dur:604800, step:1800},
+  }[range || currentRange] || {dur:3600, step:15};
+  try {
+    const r = await fetch(`${PROM}/api/v1/query_range?query=${encodeURIComponent(query)}&start=${now-cfg.dur}&end=${now}&step=${cfg.step}`);
+    const d = await r.json();
+    promOk = true;
+    if (d.status === 'success') return d.data.result;
+    return [];
+  } catch { promOk = false; return []; }
+}
+
+function makeDS(data, color, label) {
+  if (!data.length || !data[0].values.length) return null;
+  return {labels: tsLabels(data[0].values), values: tsValues(data[0].values), ds: {label, data:tsValues(data[0].values), borderColor:color.border, backgroundColor:color.bg, borderWidth:1.5, pointRadius:0, fill:true}};
+}
+
+async function loadServices() {
+  try { const r = await fetch('/services.json?t='+Date.now()); CONTAINERS = await r.json(); } catch {}
+}
+
+// ====== BUILD TAB BAR ======
+function buildTabBar() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = '';
+  for (const [key, srv] of Object.entries(SERVERS)) {
+    const count = CONTAINERS.filter(c => c.server === key).length;
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (key === activeTab ? ' active' : '');
+    btn.dataset.server = key;
+    btn.innerHTML = `${srv.icon} ${srv.label} <span class="tab-badge" id="badge-${key}">${count}</span>`;
+    btn.addEventListener('click', () => switchTab(key));
+    bar.appendChild(btn);
+  }
+}
+
+function switchTab(key) {
+  activeTab = key;
+  localStorage.setItem('homelab-tab', key);
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.server === key));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === `tab-${key}`));
+  // Destroy old charts and rebuild
+  Object.keys(activeCharts).forEach(k => { if (k.startsWith('host-') || k.startsWith('card-') || k.startsWith('speed-')) destroyChart(k); });
+  buildTabContent(key);
+  refreshTab(key);
+}
+
+// ====== BUILD TAB CONTENT ======
+function buildTabContent(server) {
+  const srv = SERVERS[server];
+  const el = document.getElementById(`tab-${server}`);
+  const services = CONTAINERS.filter(c => c.server === server);
+
+  let html = '';
+  // Server description
+  html += `<div class="server-desc">${srv.icon} ${srv.description}</div>`;
+
+  // Host bar
+  html += `<div class="host-bar" id="hbar-${server}">
+    <div class="host-stat"><div class="label">CPU</div><div class="value" id="h-cpu-${server}">--</div><div class="sub" id="h-load-${server}">load --</div></div>
+    <div class="host-stat"><div class="label">Memory</div><div class="value" id="h-ram-${server}">--</div><div class="sub" id="h-ram-d-${server}">-- / --</div></div>
+    <div class="host-stat"><div class="label">Disk /</div><div class="value" id="h-disk-${server}">--</div><div class="sub" id="h-disk-d-${server}">-- free</div></div>
+    <div class="host-stat"><div class="label">Temp</div><div class="value" id="h-temp-${server}">--</div><div class="sub">Package</div></div>
+    <div class="host-stat"><div class="label">Network In</div><div class="value" id="h-netrx-${server}">--</div><div class="sub" id="h-netrx-s-${server}">/s</div></div>
+    <div class="host-stat"><div class="label">Network Out</div><div class="value" id="h-nettx-${server}">--</div><div class="sub" id="h-nettx-s-${server}">/s</div></div>
+    <div class="host-stat"><div class="label">Uptime</div><div class="value" id="h-uptime-${server}">--</div><div class="sub">since boot</div></div>
+    <div class="host-stat"><div class="label">Services</div><div class="value" id="h-svc-${server}">${services.length}</div><div class="sub" id="h-svc-d-${server}">-- up</div></div>
+  </div>`;
+
+  // Host charts
+  html += `<div class="host-charts" id="hcharts-${server}">
+    <div class="chart-box"><div class="chart-title">CPU Usage</div><div class="chart-wrap"><canvas id="hc-cpu-${server}"></canvas><div class="chart-loading" id="cl-cpu-${server}">Loading...</div></div></div>
+    <div class="chart-box"><div class="chart-title">Memory Usage</div><div class="chart-wrap"><canvas id="hc-ram-${server}"></canvas><div class="chart-loading" id="cl-ram-${server}">Loading...</div></div></div>
+    <div class="chart-box"><div class="chart-title">Network Traffic</div><div class="chart-wrap"><canvas id="hc-net-${server}"></canvas><div class="chart-loading" id="cl-net-${server}">Loading...</div></div></div>
+    <div class="chart-box"><div class="chart-title">Temperature</div><div class="chart-wrap"><canvas id="hc-temp-${server}"></canvas><div class="chart-loading" id="cl-temp-${server}">Loading...</div></div></div>
+  </div>`;
+
+  // Speedtest section (cosmos only)
+  if (srv.hasSpeedtest) {
+    html += `<div class="speedtest-section" id="speedtest-section">
+      <div class="speedtest-top">
+        <div class="st-title">Speed Test<br><a href="http://192.168.10.43:5216" target="_blank" style="font-size:0.6rem;color:#38bdf8;text-transform:none;letter-spacing:normal">MySpeed</a></div>
+        <div class="st-gauges">
+          <div class="st-gauge"><div class="st-label">Download</div><div class="st-value" id="st-down" style="color:#3b82f6">--</div><div class="st-unit">Mbps</div><div class="st-time" id="st-time">--</div></div>
+          <div class="st-gauge"><div class="st-label">Upload</div><div class="st-value" id="st-up" style="color:#22c55e">--</div><div class="st-unit">Mbps</div></div>
+          <div class="st-gauge"><div class="st-label">Ping</div><div class="st-value" id="st-ping" style="color:#f59e0b">--</div><div class="st-unit">ms</div></div>
+        </div>
+      </div>
+      <div class="st-chart-wrap"><canvas id="chart-speed"></canvas><div class="chart-loading" id="cl-speed">Loading...</div></div>
+    </div>`;
+  }
+
+  // Toolbar
+  if (services.length > 0) {
+    html += `<div class="toolbar">
+      <div class="toolbar-left">
+        <span class="svc-label">Services</span>
+        <span class="svc-count" id="svc-count-${server}">(${services.length})</span>
+        <button class="sort-btn ${currentSort==='ct'?'active':''}" data-sort="ct" data-server="${server}">CT#</button>
+        <button class="sort-btn ${currentSort==='name'?'active':''}" data-sort="name" data-server="${server}">Name</button>
+        <button class="sort-btn ${currentSort==='cpu'?'active':''}" data-sort="cpu" data-server="${server}">CPU</button>
+        <button class="sort-btn ${currentSort==='ram'?'active':''}" data-sort="ram" data-server="${server}">RAM</button>
+        <button class="sort-btn ${currentSort==='status'?'active':''}" data-sort="status" data-server="${server}">Status</button>
+      </div>
+      <div class="toolbar-right">
+        <input type="text" class="filter-input" id="filter-${server}" placeholder="Filter..." value="${currentFilter}">
+        <button class="tr-btn ${currentRange==='1h'?'active':''}" data-range="1h">1H</button>
+        <button class="tr-btn ${currentRange==='6h'?'active':''}" data-range="6h">6H</button>
+        <button class="tr-btn ${currentRange==='24h'?'active':''}" data-range="24h">24H</button>
+        <button class="tr-btn ${currentRange==='7d'?'active':''}" data-range="7d">7D</button>
+      </div>
+    </div>`;
+  }
+
+  // Container grid
+  html += `<div class="container-grid" id="grid-${server}"></div>`;
+
+  el.innerHTML = html;
+
+  // Bind events
+  el.querySelectorAll('.sort-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      currentSort = b.dataset.sort;
+      localStorage.setItem('homelab-sort', currentSort);
+      el.querySelectorAll('.sort-btn').forEach(x => x.classList.toggle('active', x.dataset.sort === currentSort));
+      updateContainerGrid(server);
+    });
+  });
+
+  el.querySelectorAll('.tr-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      currentRange = b.dataset.range;
+      localStorage.setItem('homelab-range', currentRange);
+      document.querySelectorAll('.tr-btn').forEach(x => x.classList.toggle('active', x.dataset.range === currentRange));
+      Object.keys(activeCharts).forEach(k => { if (k.startsWith('host-') || k.startsWith('speed-')) destroyChart(k); });
+      updateHostCharts(server);
+      if (SERVERS[server].hasSpeedtest) updateSpeedtest();
+      refreshExpandedCards(server);
+    });
+  });
+
+  const filterInput = document.getElementById(`filter-${server}`);
+  if (filterInput) {
+    filterInput.addEventListener('input', (e) => {
+      currentFilter = e.target.value;
+      updateContainerGrid(server);
+    });
+  }
+}
+
+// ====== HOST METRICS ======
+async function updateHost(server) {
+  const srv = SERVERS[server];
+  const inst = srv.hostInstance;
+
+  const [cpuIdle,memTotal,memAvail,diskSize,diskAvail,temp,load1,uptime,netRx,netTx] = await Promise.all([
+    promQuery(`100 - (avg(rate(node_cpu_seconds_total{instance="${inst}",mode="idle"}[5m])) * 100)`),
+    promQuery(`node_memory_MemTotal_bytes{instance="${inst}"}`),
+    promQuery(`node_memory_MemAvailable_bytes{instance="${inst}"}`),
+    promQuery(`node_filesystem_size_bytes{instance="${inst}",mountpoint="/",fstype!="tmpfs"}`),
+    promQuery(`node_filesystem_avail_bytes{instance="${inst}",mountpoint="/",fstype!="tmpfs"}`),
+    promQuery(`node_hwmon_temp_celsius{instance="${inst}",chip=~".*coretemp.*"}`),
+    promQuery(`node_load1{instance="${inst}"}`),
+    promQuery(`node_time_seconds{instance="${inst}"} - node_boot_time_seconds{instance="${inst}"}`),
+    promQuery(`rate(node_network_receive_bytes_total{instance="${inst}",device!~"lo|veth.*|docker.*|br-.*"}[5m])`),
+    promQuery(`rate(node_network_transmit_bytes_total{instance="${inst}",device!~"lo|veth.*|docker.*|br-.*"}[5m])`)
+  ]);
+
+  const el = (id) => document.getElementById(id);
+  if (!el(`h-cpu-${server}`)) return; // tab switched
+
+  // CPU
+  if (cpuIdle.length) {
+    const v = parseFloat(cpuIdle[0].value[1]);
+    el(`h-cpu-${server}`).textContent = v.toFixed(1)+'%';
+    el(`h-cpu-${server}`).style.color = colorVal(v);
+  }
+  // Load
+  if (load1.length) el(`h-load-${server}`).textContent = 'load '+parseFloat(load1[0].value[1]).toFixed(2);
+  // RAM
+  if (memTotal.length && memAvail.length) {
+    const t=parseFloat(memTotal[0].value[1]), a=parseFloat(memAvail[0].value[1]);
+    const pct=((t-a)/t*100);
+    el(`h-ram-${server}`).textContent = pct.toFixed(1)+'%';
+    el(`h-ram-${server}`).style.color = colorVal(pct);
+    el(`h-ram-d-${server}`).textContent = `${fmtBytes(t-a)} / ${fmtBytes(t)}`;
+  }
+  // Disk
+  if (diskSize.length && diskAvail.length) {
+    const s=parseFloat(diskSize[0].value[1]), a=parseFloat(diskAvail[0].value[1]);
+    const pct=((s-a)/s*100);
+    el(`h-disk-${server}`).textContent = pct.toFixed(1)+'%';
+    el(`h-disk-${server}`).style.color = colorVal(pct);
+    el(`h-disk-d-${server}`).textContent = `${fmtBytes(a)} free`;
+  }
+  // Temp
+  if (temp.length) {
+    const maxT = Math.max(...temp.map(r=>parseFloat(r.value[1])));
+    el(`h-temp-${server}`).textContent = maxT.toFixed(0)+'\u00B0C';
+    el(`h-temp-${server}`).style.color = colorVal(maxT, [55,75]);
+  } else {
+    el(`h-temp-${server}`).textContent = 'N/A';
+  }
+  // Network
+  if (netRx.length) {
+    const total = netRx.reduce((s,r)=>s+parseFloat(r.value[1]),0);
+    el(`h-netrx-${server}`).textContent = fmtRate(total);
+  }
+  if (netTx.length) {
+    const total = netTx.reduce((s,r)=>s+parseFloat(r.value[1]),0);
+    el(`h-nettx-${server}`).textContent = fmtRate(total);
+  }
+  // Uptime
+  if (uptime.length) {
+    el(`h-uptime-${server}`).textContent = fmtUptime(parseFloat(uptime[0].value[1]));
+  }
+}
+
+// ====== HOST CHARTS ======
+async function updateHostCharts(server) {
+  const srv = SERVERS[server];
+  const inst = srv.hostInstance;
+
+  const [cpuData,ramData,netRxData,netTxData,tempData] = await Promise.all([
+    promRange(`100 - (avg(rate(node_cpu_seconds_total{instance="${inst}",mode="idle"}[5m])) * 100)`),
+    promRange(`(1 - node_memory_MemAvailable_bytes{instance="${inst}"} / node_memory_MemTotal_bytes{instance="${inst}"}) * 100`),
+    promRange(`sum(rate(node_network_receive_bytes_total{instance="${inst}",device!~"lo|veth.*|docker.*|br-.*"}[5m]))`),
+    promRange(`sum(rate(node_network_transmit_bytes_total{instance="${inst}",device!~"lo|veth.*|docker.*|br-.*"}[5m]))`),
+    promRange(`max(node_hwmon_temp_celsius{instance="${inst}",chip=~".*coretemp.*"})`)
+  ]);
+
+  // CPU chart
+  const cpuDS = makeDS(cpuData, {border:'#3b82f6',bg:'#3b82f620'}, 'CPU %');
+  if (cpuDS) {
+    const canvas = document.getElementById(`hc-cpu-${server}`);
+    if (canvas) {
+      registerChart(`host-cpu-${server}`, createLineChart(canvas, cpuDS.labels, [cpuDS], v=>v+'%'));
+      const cl = document.getElementById(`cl-cpu-${server}`); if(cl) cl.style.display='none';
+    }
+  }
+
+  // RAM chart
+  const ramDS = makeDS(ramData, {border:'#a855f7',bg:'#a855f720'}, 'RAM %');
+  if (ramDS) {
+    const canvas = document.getElementById(`hc-ram-${server}`);
+    if (canvas) {
+      registerChart(`host-ram-${server}`, createLineChart(canvas, ramDS.labels, [ramDS], v=>v.toFixed(0)+'%'));
+      const cl = document.getElementById(`cl-ram-${server}`); if(cl) cl.style.display='none';
+    }
+  }
+
+  // Network chart
+  const rxDS = makeDS(netRxData, {border:'#22c55e',bg:'#22c55e20'}, 'RX');
+  const txDS = makeDS(netTxData, {border:'#f59e0b',bg:'#f59e0b20'}, 'TX');
+  if (rxDS || txDS) {
+    const canvas = document.getElementById(`hc-net-${server}`);
+    if (canvas) {
+      const labels = (rxDS||txDS).labels;
+      const datasets = [rxDS, txDS].filter(Boolean);
+      registerChart(`host-net-${server}`, createLineChart(canvas, labels, datasets, v=>fmtRate(v), true));
+      const cl = document.getElementById(`cl-net-${server}`); if(cl) cl.style.display='none';
+    }
+  }
+
+  // Temp chart
+  const tempDS = makeDS(tempData, {border:'#ef4444',bg:'#ef444420'}, 'Temp');
+  if (tempDS) {
+    const canvas = document.getElementById(`hc-temp-${server}`);
+    if (canvas) {
+      registerChart(`host-temp-${server}`, createLineChart(canvas, tempDS.labels, [tempDS], v=>v+'\u00B0C'));
+      const cl = document.getElementById(`cl-temp-${server}`); if(cl) cl.style.display='none';
+    }
+  }
+}
+
+// ====== CONTAINER GRID ======
+async function updateContainerGrid(server) {
+  const srv = SERVERS[server];
+  const services = CONTAINERS.filter(c => c.server === server);
+
+  // Query metrics for this server's job
+  const [cpuData,memTotalData,memAvailData,diskSizeData,diskAvailData,upData] = await Promise.all([
+    promQuery(`100 - (avg by (instance)(rate(node_cpu_seconds_total{job="${srv.job}",mode="idle"}[5m])) * 100)`),
+    promQuery(`node_memory_MemTotal_bytes{job="${srv.job}"}`),
+    promQuery(`node_memory_MemAvailable_bytes{job="${srv.job}"}`),
+    promQuery(`node_filesystem_size_bytes{job="${srv.job}",mountpoint="/",fstype!="tmpfs"}`),
+    promQuery(`node_filesystem_avail_bytes{job="${srv.job}",mountpoint="/",fstype!="tmpfs"}`),
+    promQuery(`up{job="${srv.job}"}`)
+  ]);
+
+  // Docker containers if applicable
+  let dockerData = [];
+  if (srv.dockerApiHost) {
+    try {
+      const r = await fetch(`${API}/api/docker`);
+      dockerData = await r.json();
+    } catch {}
+  }
+
+  let upCount = 0;
+  for (const c of services) {
+    const cpuR = cpuData.find(r => r.metric.instance === c.instance);
+    let cpuPct = cpuR ? parseFloat(cpuR.value[1]) : 0;
+    const upR = upData.find(r => r.metric.instance === c.instance);
+    const up = upR ? parseFloat(upR.value[1]) === 1 : false;
+    if (up) upCount++;
+    const memT = memTotalData.find(r => r.metric.instance === c.instance);
+    const memA = memAvailData.find(r => r.metric.instance === c.instance);
+    let ramPct = 0;
+    if (memT && memA) { const t=parseFloat(memT.value[1]), a=parseFloat(memA.value[1]); ramPct=(t-a)/t*100; }
+    const dskS = diskSizeData.find(r => r.metric.instance === c.instance);
+    const dskA = diskAvailData.find(r => r.metric.instance === c.instance);
+    let diskPct = 0;
+    if (dskS && dskA) { const s=parseFloat(dskS.value[1]), a=parseFloat(dskA.value[1]); diskPct=(s-a)/s*100; }
+    containerMetrics[c.instance] = {cpuPct, ramPct, diskPct, up};
+  }
+
+  // Update badge
+  const badge = document.getElementById(`badge-${server}`);
+  if (badge) {
+    badge.textContent = services.length;
+    badge.className = 'tab-badge' + (upCount === services.length && services.length > 0 ? ' all-up' : upCount < services.length ? ' some-down' : '');
+  }
+
+  // Update services count in host bar
+  const svcD = document.getElementById(`h-svc-d-${server}`);
+  if (svcD) svcD.textContent = `${upCount} up`;
+
+  // Sort
+  let sorted = [...services];
+  const m = containerMetrics;
+  if (currentSort === 'name') sorted.sort((a,b)=>a.name.localeCompare(b.name));
+  else if (currentSort === 'cpu') sorted.sort((a,b)=>(m[b.instance]?.cpuPct||0)-(m[a.instance]?.cpuPct||0));
+  else if (currentSort === 'ram') sorted.sort((a,b)=>(m[b.instance]?.ramPct||0)-(m[a.instance]?.ramPct||0));
+  else if (currentSort === 'status') sorted.sort((a,b)=>(m[b.instance]?.up?1:0)-(m[a.instance]?.up?1:0));
+  else sorted.sort((a,b)=>(a.ct||0)-(b.ct||0));
+
+  // Filter
+  if (currentFilter) {
+    const f = currentFilter.toLowerCase();
+    sorted = sorted.filter(c => c.name.toLowerCase().includes(f) || (c.description||'').toLowerCase().includes(f) || String(c.ct||'').includes(f));
+  }
+
+  const countEl = document.getElementById(`svc-count-${server}`);
+  if (countEl) countEl.textContent = `(${sorted.length})`;
+
+  const grid = document.getElementById(`grid-${server}`);
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const expandedCards = getExpandedCards(server);
+
+  for (const c of sorted) {
+    const met = containerMetrics[c.instance] || {cpuPct:0, ramPct:0, diskPct:0, up:false};
+    const isUp = upData.some(r => r.metric.instance === c.instance);
+    const isDockerHost = c.instance === srv.dockerApiHost;
+
+    // Docker containers HTML
+    let dockerHtml = '';
+    if (isDockerHost && dockerData.length) {
+      const running = dockerData.filter(d => d.State === 'running').length;
+      dockerHtml = `<div class="docker-section"><div class="docker-label">Docker Containers (${running}/${dockerData.length} running)</div>`;
+      for (const d of dockerData.sort((a,b)=>a.Names[0].localeCompare(b.Names[0]))) {
+        const name = d.Names[0].replace(/^\//,'');
+        const isRunning = d.State === 'running';
+        dockerHtml += `<div class="docker-ct"><span class="docker-dot" style="background:${isRunning?'#22c55e':'#ef4444'}"></span>${name}</div>`;
+      }
+      dockerHtml += '</div>';
+    }
+
+    const isExpanded = expandedCards.includes(c.instance);
+    const card = document.createElement('div');
+    card.className = 'card' + (isExpanded ? ' expanded' : '');
+    card.dataset.instance = c.instance;
+    card.dataset.server = server;
+
+    const ctLine = c.ct !== undefined ? `CT ${c.ct} &middot; ${c.ip || ''}` : (c.ip || server);
+
+    card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-name">${c.name} <span class="expand-icon">&#9660;</span></div>
+          <div class="card-ct">${ctLine}</div>
+        </div>
+        <div class="status-dot ${met.up ? 'status-up' : isUp ? 'status-down' : 'status-unknown'}"></div>
+      </div>
+      ${c.description ? `<div class="card-desc">${c.description}</div>` : ''}
+      <div class="metrics">
+        <div class="metric"><span class="metric-label">CPU</span><div class="metric-bar-bg"><div class="metric-bar ${barClass(met.cpuPct)}" style="width:${Math.min(met.cpuPct,100)}%"></div></div><span class="metric-val">${met.cpuPct.toFixed(1)}%</span></div>
+        <div class="metric"><span class="metric-label">RAM</span><div class="metric-bar-bg"><div class="metric-bar ${barClass(met.ramPct)}" style="width:${Math.min(met.ramPct,100)}%"></div></div><span class="metric-val">${met.ramPct.toFixed(0)}%</span></div>
+        <div class="metric"><span class="metric-label">Disk</span><div class="metric-bar-bg"><div class="metric-bar ${barClass(met.diskPct)}" style="width:${Math.min(met.diskPct,100)}%"></div></div><span class="metric-val">${met.diskPct.toFixed(0)}%</span></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0">
+        ${c.link ? `<a class="card-link" href="${c.link}" target="_blank" onclick="event.stopPropagation()">${c.linkLabel||'Open'}</a>` : ''}
+        ${isDockerHost ? '<a class="card-link" href="https://192.168.10.16:9443" target="_blank" onclick="event.stopPropagation()">Portainer</a>' : ''}
+      </div>
+      ${dockerHtml}
+      ${isExpanded ? `<div class="expanded-detail"><div class="expanded-charts" id="exp-${c.instance}">
+        <div class="expanded-chart-box"><div class="expanded-chart-title">CPU History</div><div class="expanded-chart-wrap"><canvas id="ec-cpu-${c.instance}"></canvas></div></div>
+        <div class="expanded-chart-box"><div class="expanded-chart-title">Memory History</div><div class="expanded-chart-wrap"><canvas id="ec-ram-${c.instance}"></canvas></div></div>
+        <div class="expanded-chart-box"><div class="expanded-chart-title">Network I/O</div><div class="expanded-chart-wrap"><canvas id="ec-net-${c.instance}"></canvas></div></div>
+        <div class="expanded-chart-box"><div class="expanded-chart-title">Disk I/O</div><div class="expanded-chart-wrap"><canvas id="ec-disk-${c.instance}"></canvas></div></div>
+      </div></div>` : ''}
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a')) return;
+      const inst = card.dataset.instance;
+      const srv = card.dataset.server;
+      const expanded = getExpandedCards(srv);
+      const idx = expanded.indexOf(inst);
+      if (idx > -1) {
+        expanded.splice(idx, 1);
+        card.classList.remove('expanded');
+        // Remove expanded detail
+        const detail = card.querySelector('.expanded-detail');
+        if (detail) detail.remove();
+        // Destroy charts
+        ['cpu','ram','net','disk'].forEach(t => destroyChart(`card-${t}-${inst}`));
+      } else {
+        expanded.push(inst);
+        card.classList.add('expanded');
+        // Add expanded detail
+        const detail = document.createElement('div');
+        detail.className = 'expanded-detail';
+        detail.innerHTML = `<div class="expanded-charts" id="exp-${inst}">
+          <div class="expanded-chart-box"><div class="expanded-chart-title">CPU History</div><div class="expanded-chart-wrap"><canvas id="ec-cpu-${inst}"></canvas></div></div>
+          <div class="expanded-chart-box"><div class="expanded-chart-title">Memory History</div><div class="expanded-chart-wrap"><canvas id="ec-ram-${inst}"></canvas></div></div>
+          <div class="expanded-chart-box"><div class="expanded-chart-title">Network I/O</div><div class="expanded-chart-wrap"><canvas id="ec-net-${inst}"></canvas></div></div>
+          <div class="expanded-chart-box"><div class="expanded-chart-title">Disk I/O</div><div class="expanded-chart-wrap"><canvas id="ec-disk-${inst}"></canvas></div></div>
+        </div>`;
+        card.appendChild(detail);
+        loadCardCharts(inst);
+      }
+      setExpandedCards(srv, expanded);
+    });
+
+    grid.appendChild(card);
+  }
+
+  // Load charts for already-expanded cards
+  for (const inst of expandedCards) {
+    const card = grid.querySelector(`.card[data-instance="${inst}"]`);
+    if (card && card.classList.contains('expanded')) {
+      loadCardCharts(inst);
+    }
+  }
+}
+
+// ====== CARD CHARTS ======
+async function loadCardCharts(instance) {
+  const [cpuData,ramData,netRxData,netTxData,drData,dwData] = await Promise.all([
+    promRange(`100 - (avg(rate(node_cpu_seconds_total{instance="${instance}",mode="idle"}[5m])) * 100)`),
+    promRange(`(1 - node_memory_MemAvailable_bytes{instance="${instance}"} / node_memory_MemTotal_bytes{instance="${instance}"}) * 100`),
+    promRange(`rate(node_network_receive_bytes_total{instance="${instance}",device!~"lo|veth.*|docker.*|br-.*"}[5m])`),
+    promRange(`rate(node_network_transmit_bytes_total{instance="${instance}",device!~"lo|veth.*|docker.*|br-.*"}[5m])`),
+    promRange(`rate(node_disk_read_bytes_total{instance="${instance}"}[5m])`),
+    promRange(`rate(node_disk_written_bytes_total{instance="${instance}"}[5m])`)
+  ]);
+
+  // CPU
+  const cpuDS = makeDS(cpuData, {border:'#3b82f6',bg:'#3b82f620'}, 'CPU');
+  if (cpuDS) {
+    const el = document.getElementById(`ec-cpu-${instance}`);
+    if (el) registerChart(`card-cpu-${instance}`, createLineChart(el, cpuDS.labels, [cpuDS], v=>v+'%'));
+  }
+  // RAM
+  const ramDS = makeDS(ramData, {border:'#a855f7',bg:'#a855f720'}, 'RAM');
+  if (ramDS) {
+    const el = document.getElementById(`ec-ram-${instance}`);
+    if (el) registerChart(`card-ram-${instance}`, createLineChart(el, ramDS.labels, [ramDS], v=>v.toFixed(0)+'%'));
+  }
+  // Network
+  const rxDS = makeDS(netRxData.length ? [netRxData.reduce((best,r) => parseFloat(r.values?.[0]?.[1]||0) > parseFloat(best.values?.[0]?.[1]||0) ? r : best, netRxData[0])] : [], {border:'#22c55e',bg:'#22c55e20'}, 'RX');
+  const txDS = makeDS(netTxData.length ? [netTxData.reduce((best,r) => parseFloat(r.values?.[0]?.[1]||0) > parseFloat(best.values?.[0]?.[1]||0) ? r : best, netTxData[0])] : [], {border:'#f59e0b',bg:'#f59e0b20'}, 'TX');
+  if (rxDS || txDS) {
+    const el = document.getElementById(`ec-net-${instance}`);
+    if (el) {
+      const labels = (rxDS||txDS).labels;
+      registerChart(`card-net-${instance}`, createLineChart(el, labels, [rxDS, txDS].filter(Boolean), v=>fmtRate(v), true));
+    }
+  }
+  // Disk
+  const drDS = makeDS(drData.length ? [drData.reduce((best,r) => parseFloat(r.values?.[0]?.[1]||0) > parseFloat(best.values?.[0]?.[1]||0) ? r : best, drData[0])] : [], {border:'#06b6d4',bg:'#06b6d420'}, 'Read');
+  const dwDS = makeDS(dwData.length ? [dwData.reduce((best,r) => parseFloat(r.values?.[0]?.[1]||0) > parseFloat(best.values?.[0]?.[1]||0) ? r : best, dwData[0])] : [], {border:'#f43f5e',bg:'#f43f5e20'}, 'Write');
+  if (drDS || dwDS) {
+    const el = document.getElementById(`ec-disk-${instance}`);
+    if (el) {
+      const labels = (drDS||dwDS).labels;
+      registerChart(`card-disk-${instance}`, createLineChart(el, labels, [drDS, dwDS].filter(Boolean), v=>fmtRate(v), true));
+    }
+  }
+}
+
+// ====== SPEEDTEST ======
+async function updateSpeedtest() {
+  if (!SERVERS[activeTab]?.hasSpeedtest) return;
+  try {
+    const r = await fetch('http://192.168.10.43:5216/api/speedtests?limit=24');
+    const data = await r.json();
+    if (!data || !data.length) return;
+
+    const latest = data[0];
+    const downEl = document.getElementById('st-down');
+    const upEl = document.getElementById('st-up');
+    const pingEl = document.getElementById('st-ping');
+    const timeEl = document.getElementById('st-time');
+
+    if (downEl) downEl.textContent = (latest.download || 0).toFixed(0);
+    if (upEl) upEl.textContent = (latest.upload || 0).toFixed(0);
+    if (pingEl) pingEl.textContent = (latest.ping || 0).toFixed(0);
+    if (timeEl) {
+      const d = new Date(latest.created);
+      timeEl.textContent = d.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+    }
+
+    // Chart
+    const labels = data.reverse().map(d => {
+      const dt = new Date(d.created);
+      return dt.getHours().toString().padStart(2,'0')+':'+dt.getMinutes().toString().padStart(2,'0');
+    });
+    const downData = data.map(d => d.download || 0);
+    const upData = data.map(d => d.upload || 0);
+
+    const canvas = document.getElementById('chart-speed');
+    if (canvas) {
+      registerChart('speed-main', createLineChart(canvas, labels, [
+        {label:'Download', data:downData, borderColor:'#3b82f6', backgroundColor:'#3b82f620', borderWidth:1.5, pointRadius:0, fill:true},
+        {label:'Upload', data:upData, borderColor:'#22c55e', backgroundColor:'#22c55e20', borderWidth:1.5, pointRadius:0, fill:true}
+      ], v=>v+' Mbps', true));
+      const cl = document.getElementById('cl-speed'); if(cl) cl.style.display='none';
+    }
+  } catch {}
+}
+
+// ====== EXPANDED CARDS REFRESH ======
+async function refreshExpandedCards(server) {
+  const expanded = getExpandedCards(server);
+  for (const instance of expanded) {
+    const card = document.querySelector(`.card[data-instance="${instance}"]`);
+    if (card && card.classList.contains('expanded')) {
+      await loadCardCharts(instance);
+    }
+  }
+}
+
+// ====== FLEET STATS ======
+async function updateFleetStats() {
+  const targets = await promQuery('up');
+  const total = targets.length;
+  const up = targets.filter(t => parseFloat(t.value[1]) === 1).length;
+  const nodesEl = document.getElementById('fleet-nodes');
+  if (nodesEl) nodesEl.textContent = `Nodes: ${up}/${total}`;
+
+  const dot = document.getElementById('prom-dot');
+  if (dot) dot.className = 'prom-dot ' + (promOk ? 'ok' : 'err');
+
+  const updEl = document.getElementById('fleet-updated');
+  if (updEl) updEl.textContent = 'Updated: ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// ====== REFRESH TAB ======
+async function refreshTab(server) {
+  await Promise.all([
+    updateHost(server),
+    updateContainerGrid(server),
+    updateFleetStats()
+  ]);
+  if (SERVERS[server].hasSpeedtest) updateSpeedtest();
+  setTimeout(() => updateHostCharts(server), 300);
+}
+
+// ====== INIT ======
+async function init() {
+  await loadServices();
+  buildTabBar();
+
+  // Validate active tab
+  if (!SERVERS[activeTab]) activeTab = 'cosmos';
+
+  // Build and show active tab
+  for (const key of Object.keys(SERVERS)) {
+    const el = document.getElementById(`tab-${key}`);
+    if (key === activeTab) {
+      el.classList.add('active');
+      buildTabContent(key);
+    }
+  }
+
+  // Initial refresh
+  refreshTab(activeTab);
+
+  // Periodic refresh
+  setInterval(() => {
+    if (SERVERS[activeTab]) {
+      updateHost(activeTab);
+      updateContainerGrid(activeTab);
+      updateFleetStats();
+      if (SERVERS[activeTab].hasSpeedtest) updateSpeedtest();
+    }
+  }, 30000);
+
+  // Chart refresh every 2 minutes
+  setInterval(() => {
+    if (SERVERS[activeTab]) {
+      updateHostCharts(activeTab);
+      refreshExpandedCards(activeTab);
+    }
+  }, 120000);
+}
+
+init();
+</script>
+</body>
+</html>
