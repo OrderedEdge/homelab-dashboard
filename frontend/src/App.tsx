@@ -5,6 +5,7 @@ import { QuickAccess } from './components/QuickAccess'
 import { TabBar } from './components/TabBar'
 import { Toolbar } from './components/Toolbar'
 import { ServiceGrid } from './components/ServiceGrid'
+import { HostSummary } from './components/HostSummary'
 import type { ActiveTab, SortBy, StatusFilter } from './types'
 
 const HOSTS = ['cosmos', 'zeus', 'nuc', 'titan', 'forge', 'network', 'smarthome']
@@ -48,6 +49,9 @@ export default function App() {
       <FleetBar fleet={data.fleet} hosts={data.hosts} />
       <QuickAccess services={data.services} />
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} services={data.services} hosts={HOSTS} />
+      {activeTab !== 'all' && data.hosts[activeTab] && (
+        <HostSummary name={activeTab} host={data.hosts[activeTab]} />
+      )}
       <Toolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
