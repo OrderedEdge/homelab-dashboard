@@ -7,8 +7,8 @@ class Service(BaseModel):
     name: str
     host: str
     ct: int
-    ip: str
-    instance: str
+    ip: str = ""
+    instance: str = ""
     link: Optional[str] = None
     linkLabel: Optional[str] = None
     category: str
