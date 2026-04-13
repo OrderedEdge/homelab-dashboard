@@ -1,0 +1,28 @@
+services:
+  dashboard-web:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - dashboard-api
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    mem_limit: 64m
+
+  dashboard-api:
+    build: ./backend
+    volumes:
+      - ./backend/services.json:/app/services.json
+    environment:
+      - DASHBOARD_PROMETHEUS_URL=${PROMETHEUS_URL:-http://192.168.10.21:9090}
+      - DASHBOARD_DOCKER_HOSTS=${DOCKER_HOSTS:-cosmos:192.168.10.16}
+      - DASHBOARD_POLL_INTERVAL=${POLL_INTERVAL:-30}
+    restart: unless-stopped
+    mem_limit: 256m
