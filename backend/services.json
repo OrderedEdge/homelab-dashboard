@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Prometheus",
+    "host": "cosmos",
+    "ct": 117,
+    "ip": "192.168.10.21",
+    "instance": "192.168.10.21:9090",
+    "link": "http://192.168.10.21:9090",
+    "category": "monitoring",
+    "pinned": true
+  },
+  {
+    "name": "Grafana",
+    "host": "cosmos",
+    "ct": 117,
+    "ip": "192.168.10.21",
+    "instance": "192.168.10.21:3000",
+    "link": "http://192.168.10.21:3000",
+    "category": "monitoring",
+    "pinned": true
+  }
+]
